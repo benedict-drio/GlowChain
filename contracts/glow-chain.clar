@@ -141,3 +141,66 @@
         (ok true)
     )
 )
+
+;; Like a progress record
+(define-public (like-record (record-id uint))
+    (let
+        (
+            (record (get-progress-record record-id))
+        )
+        (asserts! (is-some record) err-not-found)
+        (map-insert record-likes
+            { user: tx-sender, record-id: record-id }
+            { timestamp: stacks-block-height }
+        )
+        (increment-record-likes record-id)
+        (ok true)
+    )
+)
+
+;; Private Functions
+
+(define-private (create-routine-internal (id uint) (name (string-ascii 50)) (description (string-ascii 500)) (products (list 20 (string-ascii 50))) (is-public bool))
+    (map-insert routines
+        { routine-id: id }
+        {
+            owner: tx-sender,
+            name: name,
+            description: description,
+            products: products,
+            created-at: stacks-block-height,
+            is-public: is-public,
+            likes: u0
+        }
+    )
+)
+
+(define-private (update-user-stats-routines (user principal))
+    (let
+        (
+            (stats (default-to 
+                { routines-created: u0, records-created: u0, followers: u0, following: u0 }
+                (map-get? user-stats { user: user })
+            ))
+        )
+        (map-set user-stats
+            { user: user }
+            (merge stats { routines-created: (+ (get routines-created stats) u1) })
+        )
+    )
+)
+
+(define-private (update-user-stats-records (user principal))
+    (let
+        (
+            (stats (default-to
+                { routines-created: u0, records-created: u0, followers: u0, following: u0 }
+                (map-get? user-stats { user: user })
+            ))
+        )
+        (map-set user-stats
+            { user: user }
+            (merge stats { records-created: (+ (get records-created stats) u1) })
+        )
+    )
+)
