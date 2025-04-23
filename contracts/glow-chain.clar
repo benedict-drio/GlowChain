@@ -75,41 +75,56 @@
 
 ;; Create a new skincare routine
 (define-public (create-routine (name (string-ascii 50)) (description (string-ascii 500)) (products (list 20 (string-ascii 50))) (is-public bool))
-    (let
-        (
-            (new-routine-id (+ (var-get routine-id-nonce) u1))
+    (begin
+        ;; Validate inputs - add any specific business rules
+        (asserts! (> (len name) u0) (err u104)) ;; Name cannot be empty
+        (asserts! (> (len description) u0) (err u105)) ;; Description cannot be empty
+        
+        (let
+            ((new-routine-id (+ (var-get routine-id-nonce) u1)))
+            (begin
+                (asserts! (<= (len name) u50) (err u106)) ;; Name length exceeds limit
+                (asserts! (<= (len description) u500) (err u107)) ;; Description length exceeds limit
+                (asserts! (<= (len products) u20) (err u108)) ;; Products list exceeds limit
+                (create-routine-internal new-routine-id name description products is-public)
+            )
+            (update-user-stats-routines tx-sender)
+            (var-set routine-id-nonce new-routine-id)
+            (ok new-routine-id)
         )
-        (create-routine-internal new-routine-id name description products is-public)
-        (update-user-stats-routines tx-sender)
-        (var-set routine-id-nonce new-routine-id)
-        (ok new-routine-id)
     )
 )
 
 ;; Add a progress record
 (define-public (add-progress-record (routine-id uint) (note (string-ascii 500)) (photo-hash (string-ascii 64)))
-    (let
-        (
-            (new-record-id (+ (var-get record-id-nonce) u1))
-            (routine (get-routine routine-id))
-        )
-        (asserts! (is-some routine) err-not-found)
-        (asserts! (is-eq (get owner (unwrap-panic routine)) tx-sender) err-unauthorized)
+    (begin
+        ;; Validate inputs
+        (asserts! (> routine-id u0) (err u106)) ;; Invalid routine ID
+        (asserts! (> (len photo-hash) u0) (err u107)) ;; Photo hash cannot be empty
+        (asserts! (> (len note) u0) (err u109)) ;; Note cannot be empty
+        (asserts! (<= (len note) u500) (err u110)) ;; Note length exceeds limit
         
-        (map-insert progress-records
-            { record-id: new-record-id }
-            {
-                owner: tx-sender,
-                routine-id: routine-id,
-                note: note,
-                photo-hash: photo-hash,
-                timestamp: stacks-block-height,
-                likes: u0
-            }
+        (let
+            ((new-record-id (+ (var-get record-id-nonce) u1))
+             (routine (get-routine routine-id)))
+            (asserts! (is-some routine) err-not-found)
+            (asserts! (is-eq (get owner (unwrap-panic routine)) tx-sender) err-unauthorized)
+            
+            (map-insert progress-records
+                { record-id: new-record-id }
+                {
+                    owner: tx-sender,
+                    routine-id: routine-id,
+                    note: note,
+                    photo-hash: photo-hash,
+                    timestamp: stacks-block-height,
+                    likes: u0
+                }
+            )
+            (update-user-stats-records tx-sender)
+            (var-set record-id-nonce new-record-id)
+            (ok new-record-id)
         )
-        (update-user-stats-records tx-sender)
-        (var-set record-id-nonce new-record-id)
-        (ok new-record-id)
     )
 )
 
