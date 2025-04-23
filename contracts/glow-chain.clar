@@ -204,3 +204,92 @@
         )
     )
 )
+
+(define-private (update-follow-stats (follower principal) (following principal))
+    (let
+        (
+            (follower-stats (default-to
+                { routines-created: u0, records-created: u0, followers: u0, following: u0 }
+                (map-get? user-stats { user: follower })
+            ))
+            (following-stats (default-to
+                { routines-created: u0, records-created: u0, followers: u0, following: u0 }
+                (map-get? user-stats { user: following })
+            ))
+        )
+        (map-set user-stats
+            { user: follower }
+            (merge follower-stats { following: (+ (get following follower-stats) u1) })
+        )
+        (map-set user-stats
+            { user: following }
+            (merge following-stats { followers: (+ (get followers following-stats) u1) })
+        )
+    )
+)
+
+(define-private (increment-routine-likes (routine-id uint))
+    (let
+        (
+            (routine-opt (get-routine routine-id))
+        )
+        (if (is-some routine-opt)
+            (let
+                (
+                    (routine (unwrap-panic routine-opt))
+                )
+                (map-set routines
+                    { routine-id: routine-id }
+                    (merge routine { likes: (+ (get likes routine) u1) })
+                )
+            )
+            false
+        )
+    )
+)
+
+(define-private (increment-record-likes (record-id uint))
+    (let
+        (
+            (record-opt (get-progress-record record-id))
+        )
+        (if (is-some record-opt)
+            (let
+                (
+                    (record (unwrap-panic record-opt))
+                )
+                (map-set progress-records
+                    { record-id: record-id }
+                    (merge record { likes: (+ (get likes record) u1) })
+                )
+            )
+            false
+        )
+    )
+)
+
+;; Read Only Functions
+
+(define-read-only (get-routine (routine-id uint))
+    (map-get? routines { routine-id: routine-id })
+)
+
+(define-read-only (get-progress-record (record-id uint))
+    (map-get? progress-records { record-id: record-id })
+)
+
+(define-read-only (get-user-stats (user principal))
+    (map-get? user-stats { user: user })
+)
+
+(define-read-only (is-following (follower principal) (following principal))
+    (is-some (map-get? follows { follower: follower, following: following }))
+)
+
+(define-read-only (has-liked-routine (user principal) (routine-id uint))
+    (is-some (map-get? routine-likes { user: user, routine-id: routine-id }))
+)
+
+(define-read-only (has-liked-record (user principal) (record-id uint))
+    (is-some (map-get? record-likes { user: user, record-id: record-id }))
+)
