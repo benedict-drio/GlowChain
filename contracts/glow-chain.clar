@@ -70,3 +70,74 @@
 
 (define-data-var routine-id-nonce uint u0)
 (define-data-var record-id-nonce uint u0)
+
+;; Public Functions
+
+;; Create a new skincare routine
+(define-public (create-routine (name (string-ascii 50)) (description (string-ascii 500)) (products (list 20 (string-ascii 50))) (is-public bool))
+    (let
+        (
+            (new-routine-id (+ (var-get routine-id-nonce) u1))
+        )
+        (create-routine-internal new-routine-id name description products is-public)
+        (update-user-stats-routines tx-sender)
+        (var-set routine-id-nonce new-routine-id)
+        (ok new-routine-id)
+    )
+)
+
+;; Add a progress record
+(define-public (add-progress-record (routine-id uint) (note (string-ascii 500)) (photo-hash (string-ascii 64)))
+    (let
+        (
+            (new-record-id (+ (var-get record-id-nonce) u1))
+            (routine (get-routine routine-id))
+        )
+        (asserts! (is-some routine) err-not-found)
+        (asserts! (is-eq (get owner (unwrap-panic routine)) tx-sender) err-unauthorized)
+        
+        (map-insert progress-records
+            { record-id: new-record-id }
+            {
+                owner: tx-sender,
+                routine-id: routine-id,
+                note: note,
+                photo-hash: photo-hash,
+                timestamp: stacks-block-height,
+                likes: u0
+            }
+        )
+        (update-user-stats-records tx-sender)
+        (var-set record-id-nonce new-record-id)
+        (ok new-record-id)
+    )
+)
+
+;; Follow another user
+(define-public (follow-user (user principal))
+    (begin
+        (asserts! (not (is-eq tx-sender user)) err-unauthorized)
+        (map-insert follows
+            { follower: tx-sender, following: user }
+            { timestamp: stacks-block-height }
+        )
+        (update-follow-stats tx-sender user)
+        (ok true)
+    )
+)
+
+;; Like a routine
+(define-public (like-routine (routine-id uint))
+    (let
+        (
+            (routine (get-routine routine-id))
+        )
+        (asserts! (is-some routine) err-not-found)
+        (map-insert routine-likes
+            { user: tx-sender, routine-id: routine-id }
+            { timestamp: stacks-block-height }
+        )
+        (increment-routine-likes routine-id)
+        (ok true)
+    )
+)
